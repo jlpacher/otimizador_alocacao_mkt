@@ -1,4 +1,4 @@
-from promo_scheduling.input import possible_promotions, partners, mechanics
+from input import possible_promotions, partners, mechanics
 from promo_scheduling.solver import MechanicPartnerAssignmentSolver
 
 # parceiros > maquinas de produzir clientes
