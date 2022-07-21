@@ -1,5 +1,6 @@
 import collections
 from dataclasses import dataclass
+from typing import Dict
 from ortools.sat.python import cp_model
 
 # parceiros > maquinas de produzir clientes
@@ -14,170 +15,160 @@ class Partner:
 
 
 @dataclass
-class Promotion:
+class Mechanic:
     name: str
     duration: int = 1
 
 
 @dataclass
-class PartnerPromotionProductivity:
+class Promotion:
     partner: Partner
-    promotion: Promotion
+    mechanic: Mechanic
     productivity: int
 
 
+@dataclass
+class Assignment:
+    is_active: cp_model.IntVar
+    promotion: Promotion
+
+
 def main():
-    dz_1 = Promotion('DZ 1')
-    dz_4 = Promotion('DZ 4')
-    dz_8 = Promotion('DZ 8')
+    dz_1 = Mechanic('DZ 1', 10)
+    dz_4 = Mechanic('DZ 4')
+    dz_8 = Mechanic('DZ 8')
 
     amz = Partner('Amazon')
     nike = Partner('Nike')
     acom = Partner('Americanas')
+    suba = Partner('Submarino')
 
     amz_jobs = [
-        PartnerPromotionProductivity(
+        Promotion(
             partner=amz,
-            promotion=dz_1,
+            mechanic=dz_1,
             productivity=1000
         ),
-        PartnerPromotionProductivity(
+        Promotion(
             partner=amz,
-            promotion=dz_4,
+            mechanic=dz_4,
             productivity=3000
         ),
-        PartnerPromotionProductivity(
+        Promotion(
             partner=amz,
-            promotion=dz_8,
+            mechanic=dz_8,
             productivity=5000
         )
     ]
     nike_jobs = [
-        PartnerPromotionProductivity(
+        Promotion(
             partner=nike,
-            promotion=dz_1,
+            mechanic=dz_1,
             productivity=2000
         ),
-        PartnerPromotionProductivity(
+        Promotion(
             partner=nike,
-            promotion=dz_4,
+            mechanic=dz_4,
             productivity=5000
         ),
-        PartnerPromotionProductivity(
+        Promotion(
             partner=nike,
-            promotion=dz_8,
+            mechanic=dz_8,
             productivity=6000
         )
     ]
     acom_jobs = [
-        PartnerPromotionProductivity(
+        Promotion(
             partner=acom,
-            promotion=dz_1,
+            mechanic=dz_1,
             productivity=5000
         ),
-        PartnerPromotionProductivity(
+        Promotion(
             partner=acom,
-            promotion=dz_4,
+            mechanic=dz_4,
             productivity=10000
         ),
-        PartnerPromotionProductivity(
+        Promotion(
             partner=acom,
-            promotion=dz_8,
+            mechanic=dz_8,
             productivity=15000
         )
     ]
 
-    jobs = [*amz_jobs, *nike_jobs, *acom_jobs]
+    suba_jobs = [
+        Promotion(
+            partner=suba,
+            mechanic=dz_1,
+            productivity=5000
+        ),
+        Promotion(
+            partner=suba,
+            mechanic=dz_4,
+            productivity=10000
+        ),
+        Promotion(
+            partner=suba,
+            mechanic=dz_8,
+            productivity=15000
+        )
+    ]
+
+    possible_promotions = [*amz_jobs, *nike_jobs, *acom_jobs, *suba_jobs]
+    partners = [amz, nike, acom, suba]
+    promotions = [dz_1, dz_4, dz_8]
 
     # Create the model.
     model = cp_model.CpModel()
-    duration_horizon = 1
-    productivity_horizon = 100000
 
-    # Named tuple to store information about created variables.
-    task_type = collections.namedtuple('task_type', 'start end interval')
-    # Named tuple to manipulate solution information.
+    all_assignments: Dict[str, Assignment] = {}
 
-    all_promotions_duration = {}
-    all_promotions_productivity = {}
-    partners_to_promotions = collections.defaultdict(list)
+    for promotion in possible_promotions:
+        partner = promotion.partner
+        mechanic = promotion.mechanic
+        relation_id = f'{partner.name}_{mechanic.name}'
+        is_promo_active = model.NewBoolVar('Promo_' + relation_id)
+        all_assignments[relation_id] = Assignment(is_promo_active, promotion)
 
-    for job in jobs:
-        partner = job.partner
-        promotion = job.promotion
-        duration = job.promotion.duration
-        suffix = f'_{partner.name}_{promotion.name}'
+    for partner in partners:
+        model.AddAtMostOne(
+            all_assignments[f'{partner.name}_{promotion.name}'].is_active
+            for promotion in promotions)
 
-        # time vars
-        start_var = model.NewIntVar(0, duration_horizon, 'time_start' + suffix)
-        end_var = model.NewIntVar(0, duration_horizon, 'time_end' + suffix)
-        interval_var = model.NewIntervalVar(start_var, duration, end_var,
-                                            'time_interval' + suffix)
-        all_promotions_duration[f'{partner.name}_{promotion.name}'] = task_type(
-            start=start_var,
-            end=end_var,
-            interval=interval_var
+    for promotion in promotions:
+        model.AddAtMostOne(
+            all_assignments[f'{partner.name}_{promotion.name}'].is_active
+            for partner in partners)
+
+    model.Maximize(
+        sum(
+            assignment.is_active * assignment.promotion.productivity * assignment.promotion.mechanic.duration
+            for assignment in all_assignments.values()
         )
-        partners_to_promotions[partner.name].append(interval_var)
-
-        productivity = job.productivity
-        # productivity var
-        start_var = model.NewIntVar(0, productivity_horizon, 'prod_start' + suffix)
-        end_var = model.NewIntVar(0, productivity_horizon, 'prod_end' + suffix)
-        interval_var = model.NewIntervalVar(start_var, productivity, end_var,
-                                            'prod_interval' + suffix)
-        all_promotions_productivity[f'{partner.name}_{promotion.name}'] = task_type(
-            start=start_var,
-            end=end_var,
-            interval=interval_var
-        )
-
-    # Create and add disjunctive constraints.
-    for partner_name, partner_to_promotions in partners_to_promotions.items():
-        print(f"Adding no overlap to {partner_name}")
-        model.AddNoOverlap(partner_to_promotions)
-
-    # Makespan objective.
-    obj_var = model.NewIntVar(0, duration_horizon, 'makespan')
-    model.AddMaxEquality(obj_var, [
-        promo.end for promo in all_promotions_duration.values()
-    ])
-    model.Maximize(obj_var)
+    )
 
     solver = cp_model.CpSolver()
     status = solver.Solve(model)
 
-    assigned_task_type = collections.namedtuple('assigned_task_type',
-                                                'start promotion duration')
-
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         print('Solution:')
-        # Create one list of assigned tasks per machine.
-        assigned_jobs = collections.defaultdict(list)
 
-        for job in jobs:
-            partner = job.partner
-            promotion = job.promotion
-            assigned_jobs[partner.name].append(
-                assigned_task_type(start=solver.Value(
-                    all_promotions_duration[f'{partner.name}_{promotion.name}'].start),
-                    promotion=promotion.name,
-                    duration=promotion.duration))
-
-        # Create per machine output lines.
-        output = assigned_jobs
+        output = []
+        for promotion in possible_promotions:
+            partner = promotion.partner
+            mechanic = promotion.mechanic
+            is_active = solver.Value(
+                all_assignments[f'{partner.name}_{mechanic.name}'].is_active)
+            if is_active:
+                output.append(
+                    f"Parceiro {promotion.partner.name} "
+                    f"com promoção {promotion.mechanic.name} "
+                    f"resultando em {promotion.productivity * promotion.mechanic.duration} clientes")
 
         # Finally print the solution found.
-        print(f'Optimal Schedule Length: {solver.ObjectiveValue()}')
-        print(output)
+        print(f'Optimal result: {solver.ObjectiveValue()} clientes')
+        print('\n'.join(output))
     else:
         print('No solution found.')
-
-    # Statistics.
-    print('\nStatistics')
-    print('  - conflicts: %i' % solver.NumConflicts())
-    print('  - branches : %i' % solver.NumBranches())
-    print('  - wall time: %f s' % solver.WallTime())
 
 
 if __name__ == '__main__':
