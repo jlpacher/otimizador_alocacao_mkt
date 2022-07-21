@@ -2,7 +2,7 @@
 from typing import Dict, List
 from ortools.sat.python import cp_model
 
-from entity import Assignment, Mechanic, Partner, Promotion
+from promo_scheduling.entity import Assignment, Mechanic, Partner, Promotion
 
 
 class MechanicPartnerAssignmentSolver:

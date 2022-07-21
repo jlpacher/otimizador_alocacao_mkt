@@ -1,4 +1,4 @@
-from entity import Mechanic, Partner, Promotion
+from promo_scheduling.entity import Mechanic, Partner, Promotion
 
 dz_1 = Mechanic('DZ 1', 10)
 dz_4 = Mechanic('DZ 4')
