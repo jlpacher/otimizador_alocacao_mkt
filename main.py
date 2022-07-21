@@ -15,6 +15,8 @@ def main():
     )
     solver.run()
     solver.print_solution()
+    solver.print_statistics()
+    solver.export_model('gitignore_model.txt')
 
 
 if __name__ == '__main__':

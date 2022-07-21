@@ -42,6 +42,9 @@ class MechanicPartnerAssignmentSolver:
             )
         )
 
+    def has_solution_found(self):
+        return self.status == cp_model.OPTIMAL or self.status == cp_model.FEASIBLE
+
     def run(self):
         self.create_variables_is_promotion_active()
         self.add_constraint_max_one_promo_per_partner()
@@ -50,7 +53,7 @@ class MechanicPartnerAssignmentSolver:
         self.status = self.solver.Solve(self.model)
 
     def print_solution(self):
-        if self.status == cp_model.OPTIMAL or self.status == cp_model.FEASIBLE:
+        if self.has_solution_found():
             print('Solution:')
 
             output = []
@@ -65,8 +68,16 @@ class MechanicPartnerAssignmentSolver:
                         f"com promoção {promotion.mechanic.name} "
                         f"resultando em {promotion.productivity * promotion.mechanic.duration} clientes")
 
-            # Finally print the solution found.
             print(f'Optimal result: {self.solver.ObjectiveValue()} clientes')
             print('\n'.join(output))
         else:
             print('No solution found.')
+
+    def print_statistics(self):
+        print('\nStatistics')
+        print('  - conflicts: %i' % self.solver.NumConflicts())
+        print('  - branches : %i' % self.solver.NumBranches())
+        print('  - wall time: %f s' % self.solver.WallTime())
+
+    def export_model(self, filename):
+        self.model.ExportToFile(filename)
