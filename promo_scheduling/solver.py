@@ -61,6 +61,12 @@ class MechanicPartnerAssignmentSolver:
                 sum(self.all_assignments[f'{partner.name}_{mechanic.name}'].interval.SizeExpr()
                     for mechanic in self.mechanics) <= partner.availability
             )
+        # for partner in self.partners:
+        #     self.model.Add(
+        #         sum(
+        #             sum(self.all_assignments[f'{partner.name}_{mechanic.name}'].duration_array)
+        #             for mechanic in self.mechanics) <= partner.availability
+        #     )
 
     def add_constraint_promo_max_duration(self) -> None:
         for mechanic in self.mechanics:
@@ -68,15 +74,20 @@ class MechanicPartnerAssignmentSolver:
                 sum(self.all_assignments[f'{partner.name}_{mechanic.name}'].interval.SizeExpr()
                     for partner in self.partners) <= mechanic.availability
             )
+        # for mechanic in self.mechanics:
+        #     self.model.Add(
+        #         sum(
+        #             sum(self.all_assignments[f'{partner.name}_{mechanic.name}'].duration_array)
+        #             for partner in self.partners) <= mechanic.availability
+        #     )
 
-    # FIXME
-    # def add_constraint_min_duration(self) -> None:
-    #     for assignment in self.all_assignments.values():
-    #         self.model.Add(
-    #             assignment.interval.SizeExpr() >= self.system_settings.min_duration
-    #         ).OnlyEnforceIf(
-    #             assignment.interval.SizeExpr()
-    #         )
+    def add_constraint_min_duration(self) -> None:
+        for assignment in self.all_assignments.values():
+            self.model.Add(
+                assignment.interval.SizeExpr() >= self.system_settings.min_duration
+            ).OnlyEnforceIf(
+                assignment.duration_array[0]
+            )
 
     def add_constraint_no_overlapping_promotion(self):
         for partner in self.partners:
@@ -101,7 +112,7 @@ class MechanicPartnerAssignmentSolver:
         self.add_constraint_max_one_promo_per_partner()
         self.add_constraint_promo_max_duration()
         self.add_constraint_no_overlapping_promotion()
-        # self.add_constraint_min_duration()
+        self.add_constraint_min_duration()
         self.create_objective_function()
         self.status = self.solver.Solve(self.model)
 
