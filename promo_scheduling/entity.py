@@ -42,9 +42,9 @@ class Assignment:
         coefs = []
         for i in range(availability):
             if i == 0:
-                coefs.append(prod_ref * 0.7)
+                coefs.append(prod_ref * 1)
             elif i == 1:
-                coefs.append(prod_ref * 1.4)
+                coefs.append(prod_ref * 4)
             else:
                 coefs.append(prod_ref)
         return cp_model.LinearExpr.WeightedSum(self.duration_array, coefs)
