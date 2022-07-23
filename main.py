@@ -1,4 +1,4 @@
-from input import possible_promotions, partners, mechanics
+from input import possible_promotions, partners, mechanics, system_settings
 from promo_scheduling.solver import MechanicPartnerAssignmentSolver
 
 # parceiros > maquinas de produzir clientes
@@ -11,7 +11,8 @@ def main():
     solver = MechanicPartnerAssignmentSolver(
         possible_promotions=possible_promotions,
         partners=partners,
-        mechanics=mechanics
+        mechanics=mechanics,
+        system_settings=system_settings
     )
     solver.run()
     solver.print_solution()
