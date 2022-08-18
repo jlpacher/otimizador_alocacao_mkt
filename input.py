@@ -2,9 +2,9 @@ from promo_scheduling.entity import Mechanic, Partner, Promotion, SystemSettings
 
 system_settings = SystemSettings()
 
-dz_1 = Mechanic('DZ 1', 100)
-dz_4 = Mechanic('DZ 4', 2)
-dz_8 = Mechanic('DZ 8', 6)
+dz_1 = Mechanic('DZ1', 15)
+dz_4 = Mechanic('DZ4', 2)
+dz_8 = Mechanic('DZ8', 6)
 
 amz = Partner('Amazon', 10)
 nike = Partner('Nike', 10)
