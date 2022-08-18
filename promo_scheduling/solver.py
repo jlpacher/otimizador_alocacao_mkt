@@ -63,7 +63,6 @@ class MechanicPartnerAssignmentSolver:
                 # TODO: enforce the day_flags[start_var] == 1
                 # self.model.Add(day_flags[start_var] == 1)
                 self.model.AddMapDomain(var=start_var, bool_var_array=day_flags)
-                self.model.Add
 
                 # only one day active
                 self.model.AddAtMostOne(day_flags)
