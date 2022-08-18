@@ -10,11 +10,6 @@ from promo_scheduling.entity import (
     Promotion,
     SystemSettings)
 
-# Adicionar array de bool var para representar a duração da promoção
-# adicionar restrição de que x[i] >= x[i+1] para garantir que a duração
-# ocupará as primeiras posições do array
-# usar a weighted sum para encontrar a produtividade
-
 
 class MechanicPartnerAssignmentSolver:
     def __init__(
@@ -60,8 +55,7 @@ class MechanicPartnerAssignmentSolver:
             for day in range(promo_availability):
                 duration_array = schedule.get_duration_array_at_day(day)
                 day_flags = schedule.get_day_flags_var()
-                # TODO: enforce the day_flags[start_var] == 1
-                # self.model.Add(day_flags[start_var] == 1)
+                # enforce the day_flags[start_var] == 1
                 self.model.AddMapDomain(var=start_var, bool_var_array=day_flags)
 
                 # only one day active
