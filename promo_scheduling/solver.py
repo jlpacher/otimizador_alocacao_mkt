@@ -42,14 +42,17 @@ class MechanicPartnerAssignmentSolver:
                                                      'interval_' + relation_id)
             is_active = self.model.NewBoolVar(relation_id + '_is_active')
             not_is_active = self.model.NewBoolVar(relation_id + '_not_is_active')
+            # model can either be active or not
             self.model.Add(is_active + not_is_active == 1)
+            # if not active, duration should be zero, this is a workaround to set is active
+            self.model.Add(duration_var == 0).OnlyEnforceIf(not_is_active)
 
             schedule = Schedule(
                 name=relation_id,
                 model=self.model,
                 length=promo_availability
             )
-            # we cant end a promotion after the availability
+            # we cant end a promotion after the partner availability
             self.model.Add(end_var <= partner.availability)
 
             for day in range(promo_availability):
@@ -98,11 +101,6 @@ class MechanicPartnerAssignmentSolver:
                 assignment.interval.SizeExpr() >= self.system_settings.min_duration
             ).OnlyEnforceIf(
                 assignment.is_active
-            )
-            self.model.Add(
-                assignment.interval.SizeExpr() == 0
-            ).OnlyEnforceIf(
-                assignment.not_is_active
             )
 
     def add_constraint_no_overlapping_promotion(self):
