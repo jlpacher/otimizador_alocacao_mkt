@@ -62,19 +62,27 @@ class Assignment:
     schedule: Schedule
     promotion: Promotion
 
-    def productivity(self):
+    def get_productivity_at(self, start_day, num_days_since_start):
         prod_ref = self.promotion.productivity_ref
+
+        if start_day == 0:
+            return 0
+        if num_days_since_start == 0:
+            return prod_ref * 1
+        elif num_days_since_start == 1:
+            return prod_ref * 4
+        else:
+            return prod_ref
+
+    def productivity(self):
         ret = 0
         for starting_day, duration_array in enumerate(self.schedule.schedule_array):
-            if starting_day == 0:
-                continue
             coefs = []
-            for i in range(len(duration_array)):
-                if i == 0:
-                    coefs.append(prod_ref * 1)
-                elif i == 1:
-                    coefs.append(prod_ref * 4)
-                else:
-                    coefs.append(prod_ref)
+            for num_days in range(len(duration_array)):
+                productivity = self.get_productivity_at(
+                    start_day=starting_day,
+                    num_days_since_start=num_days
+                )
+                coefs.append(productivity)
             ret += cp_model.LinearExpr.WeightedSum(duration_array, coefs)
         return ret

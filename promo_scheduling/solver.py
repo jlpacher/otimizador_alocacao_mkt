@@ -8,7 +8,8 @@ from promo_scheduling.entity import (
     Mechanic,
     Partner,
     Promotion,
-    SystemSettings)
+    SystemSettings
+)
 
 
 class MechanicPartnerAssignmentSolver:
@@ -28,6 +29,45 @@ class MechanicPartnerAssignmentSolver:
         # self.solver.parameters.log_search_progress = True
         self.all_assignments: Dict[str, Assignment] = {}
 
+    def create_interval_var(self, relation_id, duration_horizon):
+        start_var = self.model.NewIntVar(0, duration_horizon, 'start_' + relation_id)
+        end_var = self.model.NewIntVar(0, duration_horizon, 'end_' + relation_id)
+        duration_var = self.model.NewIntVar(0, duration_horizon, 'duration_' + relation_id)
+        interval_var = self.model.NewIntervalVar(start_var, duration_var, end_var,
+                                                 'interval_' + relation_id)
+        return start_var, end_var, duration_var, interval_var
+
+    def create_active_var(self, relation_id, duration_var):
+        is_active = self.model.NewBoolVar(relation_id + '_is_active')
+        not_is_active = self.model.NewBoolVar(relation_id + '_not_is_active')
+        # model can either be active or not
+        self.model.Add(is_active + not_is_active == 1)
+        # if not active, duration should be zero, this is a workaround to set is active
+        self.model.Add(duration_var == 0).OnlyEnforceIf(not_is_active)
+        return is_active, not_is_active
+
+    def create_schedule_matrix(self, relation_id, promo_availability, start_var, duration_var) -> Schedule:
+        schedule = Schedule(
+            name=relation_id,
+            model=self.model,
+            length=promo_availability
+        )
+
+        for day in range(promo_availability):
+            duration_array = schedule.get_duration_array_at_day(day)
+            day_flags = schedule.get_day_flags_var()
+            # enforce the day_flags[start_var] == 1
+            self.model.AddMapDomain(var=start_var, bool_var_array=day_flags)
+
+            # only one day active
+            self.model.AddAtMostOne(day_flags)
+            # enforce duration if day is active
+            self.model.Add(sum(duration_array) == duration_var).OnlyEnforceIf(day_flags[day])
+            # enforce the duration array is a vector with all ones in the beginning
+            for pos in range(promo_availability - 1):
+                self.model.Add(duration_array[pos] >= duration_array[pos + 1])
+        return schedule
+
     def create_variables(self) -> None:
         duration_horizon = max(promotion.mechanic.availability for promotion in self.possible_promotions)
         for promotion in self.possible_promotions:
@@ -35,39 +75,23 @@ class MechanicPartnerAssignmentSolver:
             mechanic = promotion.mechanic
             promo_availability = max(mechanic.availability, partner.availability)
             relation_id = f'{partner.name}_{mechanic.name}'
-            start_var = self.model.NewIntVar(0, duration_horizon, 'start_' + relation_id)
-            end_var = self.model.NewIntVar(0, duration_horizon, 'end_' + relation_id)
-            duration_var = self.model.NewIntVar(0, duration_horizon, 'duration_' + relation_id)
-            interval_var = self.model.NewIntervalVar(start_var, duration_var, end_var,
-                                                     'interval_' + relation_id)
-            is_active = self.model.NewBoolVar(relation_id + '_is_active')
-            not_is_active = self.model.NewBoolVar(relation_id + '_not_is_active')
-            # model can either be active or not
-            self.model.Add(is_active + not_is_active == 1)
-            # if not active, duration should be zero, this is a workaround to set is active
-            self.model.Add(duration_var == 0).OnlyEnforceIf(not_is_active)
 
-            schedule = Schedule(
-                name=relation_id,
-                model=self.model,
-                length=promo_availability
+            start_var, end_var, duration_var, interval_var = self.create_interval_var(
+                relation_id=relation_id,
+                duration_horizon=duration_horizon
             )
-            # we cant end a promotion after the partner availability
-            self.model.Add(end_var <= partner.availability)
 
-            for day in range(promo_availability):
-                duration_array = schedule.get_duration_array_at_day(day)
-                day_flags = schedule.get_day_flags_var()
-                # enforce the day_flags[start_var] == 1
-                self.model.AddMapDomain(var=start_var, bool_var_array=day_flags)
+            is_active, not_is_active = self.create_active_var(
+                relation_id=relation_id,
+                duration_var=duration_var
+            )
 
-                # only one day active
-                self.model.AddAtMostOne(day_flags)
-                # enforce duration if day is active
-                self.model.Add(sum(duration_array) == duration_var).OnlyEnforceIf(day_flags[day])
-                # enforce the duration array is a vector with all ones in the beginning
-                for pos in range(promo_availability - 1):
-                    self.model.Add(duration_array[pos] >= duration_array[pos + 1])
+            schedule = self.create_schedule_matrix(
+                relation_id=relation_id,
+                promo_availability=promo_availability,
+                start_var=start_var,
+                duration_var=duration_var
+            )
 
             self.all_assignments[relation_id] = Assignment(
                 id=relation_id,
@@ -110,6 +134,11 @@ class MechanicPartnerAssignmentSolver:
                 for mechanic in self.mechanics
             )
 
+    def add_constraint_promotion_end_before_availability_end(self):
+        # we cant end a promotion after the partner availability
+        for possible_assignment in self.all_assignments.values():
+            self.model.Add(possible_assignment.end <= possible_assignment.promotion.partner.availability)
+
     def create_objective_function(self) -> None:
         self.model.Maximize(
             sum(
@@ -135,6 +164,7 @@ class MechanicPartnerAssignmentSolver:
         self.add_constraint_promo_max_duration()
         self.add_constraint_no_overlapping_promotion()
         self.add_constraint_min_duration()
+        self.add_constraint_promotion_end_before_availability_end()
         self.create_objective_function()
         self.status = self.solver.Solve(self.model)
 
