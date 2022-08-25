@@ -1,15 +1,15 @@
 from promo_scheduling.entity import Mechanic, Partner, Promotion, SystemSettings
 
-system_settings = SystemSettings()
+system_settings = SystemSettings(min_duration=3)
 
-dz_1 = Mechanic('DZ1', 15)
-dz_4 = Mechanic('DZ4', 2)
-dz_8 = Mechanic('DZ8', 6)
+dz_1 = Mechanic('DZ1', 28)
+dz_4 = Mechanic('DZ4', 4)
+dz_8 = Mechanic('DZ8', 2)
 
-amz = Partner('Amazon', 10)
-nike = Partner('Nike', 10)
-acom = Partner('Americanas', 10)
-suba = Partner('Submarino', 10)
+amz = Partner('Amazon', 7)
+nike = Partner('Nike', 7)
+acom = Partner('Americanas', 7)
+suba = Partner('Submarino', 7)
 
 amz_jobs = [
     Promotion(

@@ -39,6 +39,7 @@ class Schedule:
     schedule_array: List[List[cp_model.IntVar]]
 
     def __init__(self, name, model: cp_model.CpModel, length):
+        self.length = length
         self.schedule_array = [
             [model.NewBoolVar(f'{name}_[{i},{j}]') for i in range(length)]
             for j in range(length)]
@@ -58,6 +59,7 @@ class Assignment:
     not_is_active: cp_model.IntVar
     start: cp_model.IntVar
     end: cp_model.IntVar
+    duration: cp_model.IntVar
     interval: cp_model.IntervalVar
     schedule: Schedule
     promotion: Promotion
@@ -70,7 +72,7 @@ class Assignment:
         if num_days_since_start == 0:
             return prod_ref * 1
         elif num_days_since_start == 1:
-            return prod_ref * 4
+            return prod_ref * 2
         else:
             return prod_ref
 

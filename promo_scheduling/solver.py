@@ -29,7 +29,7 @@ class MechanicPartnerAssignmentSolver:
         # self.solver.parameters.log_search_progress = True
         self.all_assignments: Dict[str, Assignment] = {}
 
-    def create_interval_var(self, relation_id, duration_horizon):
+    def create_promo_interval_var(self, relation_id, duration_horizon):
         start_var = self.model.NewIntVar(0, duration_horizon, 'start_' + relation_id)
         end_var = self.model.NewIntVar(0, duration_horizon, 'end_' + relation_id)
         duration_var = self.model.NewIntVar(0, duration_horizon, 'duration_' + relation_id)
@@ -37,7 +37,7 @@ class MechanicPartnerAssignmentSolver:
                                                  'interval_' + relation_id)
         return start_var, end_var, duration_var, interval_var
 
-    def create_active_var(self, relation_id, duration_var):
+    def create_promo_active_flag_var(self, relation_id, duration_var):
         is_active = self.model.NewBoolVar(relation_id + '_is_active')
         not_is_active = self.model.NewBoolVar(relation_id + '_not_is_active')
         # model can either be active or not
@@ -45,28 +45,6 @@ class MechanicPartnerAssignmentSolver:
         # if not active, duration should be zero, this is a workaround to set is active
         self.model.Add(duration_var == 0).OnlyEnforceIf(not_is_active)
         return is_active, not_is_active
-
-    def create_schedule_matrix(self, relation_id, promo_availability, start_var, duration_var) -> Schedule:
-        schedule = Schedule(
-            name=relation_id,
-            model=self.model,
-            length=promo_availability
-        )
-
-        for day in range(promo_availability):
-            duration_array = schedule.get_duration_array_at_day(day)
-            day_flags = schedule.get_day_flags_var()
-            # enforce the day_flags[start_var] == 1
-            self.model.AddMapDomain(var=start_var, bool_var_array=day_flags)
-
-            # only one day active
-            self.model.AddAtMostOne(day_flags)
-            # enforce duration if day is active
-            self.model.Add(sum(duration_array) == duration_var).OnlyEnforceIf(day_flags[day])
-            # enforce the duration array is a vector with all ones in the beginning
-            for pos in range(promo_availability - 1):
-                self.model.Add(duration_array[pos] >= duration_array[pos + 1])
-        return schedule
 
     def create_variables(self) -> None:
         duration_horizon = max(promotion.mechanic.availability for promotion in self.possible_promotions)
@@ -76,21 +54,20 @@ class MechanicPartnerAssignmentSolver:
             promo_availability = max(mechanic.availability, partner.availability)
             relation_id = f'{partner.name}_{mechanic.name}'
 
-            start_var, end_var, duration_var, interval_var = self.create_interval_var(
+            start_var, end_var, duration_var, interval_var = self.create_promo_interval_var(
                 relation_id=relation_id,
                 duration_horizon=duration_horizon
             )
 
-            is_active, not_is_active = self.create_active_var(
+            is_active, not_is_active = self.create_promo_active_flag_var(
                 relation_id=relation_id,
                 duration_var=duration_var
             )
 
-            schedule = self.create_schedule_matrix(
-                relation_id=relation_id,
-                promo_availability=promo_availability,
-                start_var=start_var,
-                duration_var=duration_var
+            schedule = Schedule(
+                name=relation_id,
+                model=self.model,
+                length=promo_availability
             )
 
             self.all_assignments[relation_id] = Assignment(
@@ -99,11 +76,11 @@ class MechanicPartnerAssignmentSolver:
                 not_is_active=not_is_active,
                 start=start_var,
                 end=end_var,
+                duration=duration_var,
                 interval=interval_var,
                 schedule=schedule,
                 promotion=promotion
             )
-        self.model.AddAtLeastOne([assignment.is_active for assignment in self.all_assignments.values()])
 
     def add_constraint_max_one_promo_per_partner(self) -> None:
         for partner in self.partners:
@@ -126,6 +103,26 @@ class MechanicPartnerAssignmentSolver:
             ).OnlyEnforceIf(
                 assignment.is_active
             )
+
+    def add_schedule_constraint(self) -> None:
+        for assignment in self.all_assignments.values():
+            schedule = assignment.schedule
+            schedule_length = schedule.length
+            start_var = assignment.start
+            duration_var = assignment.duration
+            for day in range(schedule_length):
+                duration_array = schedule.get_duration_array_at_day(day)
+                day_flags = schedule.get_day_flags_var()
+                # enforce the day_flags[start_var] == 1
+                self.model.AddMapDomain(var=start_var, bool_var_array=day_flags)
+
+                # only one day active
+                self.model.AddAtMostOne(day_flags)
+                # enforce duration if day is active
+                self.model.Add(sum(duration_array) == duration_var).OnlyEnforceIf(day_flags[day])
+                # enforce the duration array is a vector with all ones in the beginning
+                for pos in range(schedule_length - 1):
+                    self.model.Add(duration_array[pos] >= duration_array[pos + 1])
 
     def add_constraint_no_overlapping_promotion(self):
         for partner in self.partners:
@@ -160,6 +157,7 @@ class MechanicPartnerAssignmentSolver:
 
     def run(self) -> None:
         self.create_variables()
+        self.add_schedule_constraint()
         self.add_constraint_max_one_promo_per_partner()
         self.add_constraint_promo_max_duration()
         self.add_constraint_no_overlapping_promotion()
@@ -180,13 +178,16 @@ class MechanicPartnerAssignmentSolver:
                 start_var = self.solver.Value(assignment.start)
                 end_var = self.solver.Value(assignment.end)
                 productivity = self.solver.Value(assignment.productivity())
+                if productivity == 0:
+                    continue
 
                 schedule_matrix = [
                     [self.solver.Value(duration_array[i]) for i in range(len(duration_array))]
                     for duration_array in assignment.schedule.schedule_array
                 ]
                 is_active = self.solver.Value(assignment.is_active)
-                print(f"{assignment.id} is active={is_active}")
+                not_is_active = self.solver.Value(assignment.not_is_active)
+                print(f"{assignment.id} is active={is_active} / not is active={not_is_active}")
                 for line in schedule_matrix:
                     print(line)
                 output.append(
