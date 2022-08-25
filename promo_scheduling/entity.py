@@ -5,7 +5,7 @@ from ortools.sat.python import cp_model
 
 @dataclass
 class SystemSettings:
-    min_duration = 3
+    min_duration: int = 3
 
 
 @dataclass
