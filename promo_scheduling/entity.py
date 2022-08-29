@@ -70,9 +70,21 @@ class Assignment:
         if start_day == 0:
             return 0
         if num_days_since_start == 0:
-            return prod_ref * 1
+            return prod_ref * 0
         elif num_days_since_start == 1:
-            return prod_ref * 2
+            return prod_ref * 0.5555
+        elif num_days_since_start == 2:
+            return prod_ref * 0.7788
+        elif num_days_since_start == 3:
+            return prod_ref * 0.9930
+        elif num_days_since_start == 4:
+            return prod_ref * 1.0000
+        elif num_days_since_start == 5:
+            return prod_ref * 0.5547
+        elif num_days_since_start == 6:
+            return prod_ref * 0.4201
+        elif num_days_since_start == 7:
+            return prod_ref * 0.2962
         else:
             return prod_ref
 
